@@ -1,22 +1,31 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import type { Campaign, Post } from "../lib/types";
+import type { Campaign, Post, PostStats } from "../lib/types";
 import { computeSchedule, type Cadence } from "../lib/schedule";
+import { isRenderableImage } from "../lib/images";
+import { formatCount } from "../lib/stats";
 import PostDetailModal from "../components/PostDetailModal";
 import ThemeGeneratorModal from "../components/ThemeGeneratorModal";
 import CampaignSettings from "../components/CampaignSettings";
 
+// Post plus its latest SDR-reported stats snapshot (limit-1 embed).
+type PostWithStats = Post & {
+  post_stats?: Pick<PostStats, "views" | "likes" | "comments" | "recorded_at">[];
+};
+
 export default function CampaignDetail() {
   const { campaignId } = useParams();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<PostWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedWrite, setSelectedWrite] = useState(false);
 
   // bulk-assign form
   const [startDate, setStartDate] = useState("");
@@ -29,10 +38,13 @@ export default function CampaignDetail() {
   async function loadPosts() {
     const { data } = await supabase
       .from("posts")
-      .select("*")
+      .select("*, post_stats(views, likes, comments, recorded_at)")
       .eq("campaign_id", campaignId)
-      .order("position", { ascending: true });
-    if (data) setPosts(data as Post[]);
+      .order("position", { ascending: true })
+      .order("recorded_at", { referencedTable: "post_stats", ascending: false })
+      .limit(1, { referencedTable: "post_stats" });
+    if (data) setPosts(data as unknown as PostWithStats[]);
+    setLoading(false);
   }
 
   // Reorder the local list as the user drags over rows (live preview).
@@ -109,6 +121,22 @@ export default function CampaignDetail() {
     }
   }
 
+  function buildCadence(): Cadence {
+    return cadenceKind === "everyNDays"
+      ? { kind: "everyNDays", n: everyN }
+      : cadenceKind === "weekly"
+        ? { kind: "weekly", weekdays }
+        : { kind: cadenceKind };
+  }
+
+  // Live preview of what "Apply" would write, so dates are never assigned blind.
+  const previewSlots = useMemo(() => {
+    if (!startDate || posts.length === 0) return null;
+    if (cadenceKind === "weekly" && weekdays.length === 0) return null;
+    return computeSchedule(posts.length, startDate, buildCadence(), time);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, cadenceKind, everyN, weekdays, time, posts.length]);
+
   async function applyBulkDates() {
     if (!startDate) {
       setError("Pick a start date first.");
@@ -122,14 +150,7 @@ export default function CampaignDetail() {
       if (!confirm("This overwrites existing scheduled dates in this campaign. Continue?"))
         return;
     }
-    const cadence: Cadence =
-      cadenceKind === "everyNDays"
-        ? { kind: "everyNDays", n: everyN }
-        : cadenceKind === "weekly"
-          ? { kind: "weekly", weekdays }
-          : { kind: cadenceKind };
-
-    const slots = computeSchedule(posts.length, startDate, cadence, time);
+    const slots = computeSchedule(posts.length, startDate, buildCadence(), time);
     await Promise.all(
       posts.map((p, i) =>
         supabase
@@ -141,7 +162,54 @@ export default function CampaignDetail() {
     void loadPosts();
   }
 
-  const pendingIds = posts.filter((p) => p.status === "pending").map((p) => p.id);
+  // Only empty pending posts are eligible for bulk AI generation — anything
+  // with a body (hand-written or generated) must never be overwritten here.
+  const emptyPendingIds = posts
+    .filter((p) => p.status === "pending" && !p.body.trim())
+    .map((p) => p.id);
+
+  const counts = useMemo(() => {
+    const written = posts.filter((p) => p.body.trim()).length;
+    // Sum the latest stats snapshot of each post for campaign totals.
+    const totals = posts.reduce(
+      (acc, p) => {
+        const s = p.post_stats?.[0];
+        if (!s) return acc;
+        return {
+          reported: true,
+          views: acc.views + s.views,
+          likes: acc.likes + s.likes,
+          comments: acc.comments + s.comments,
+        };
+      },
+      { reported: false, views: 0, likes: 0, comments: 0 },
+    );
+    return {
+      totals,
+      total: posts.length,
+      unwritten: posts.length - written,
+      awaitingApproval: posts.filter((p) => p.status === "generated").length,
+      approved: posts.filter((p) => p.status === "approved").length,
+      posted: posts.filter((p) => p.status === "posted").length,
+      scheduled: posts.filter((p) => p.scheduled_at).length,
+    };
+  }, [posts]);
+
+  const nextHint =
+    counts.total === 0
+      ? "Next: add themes below — one per post — or use ✨ Generate themes for ideas."
+      : counts.unwritten > 0
+        ? `Next: write the ${counts.unwritten} empty post${counts.unwritten === 1 ? "" : "s"} (click a post, then “Write post”) — or generate them with AI.`
+        : counts.scheduled < counts.total
+          ? "Next: assign posting dates below so posts show up on the Today page."
+          : counts.awaitingApproval > 0
+            ? `Next: review and approve the ${counts.awaitingApproval} post${counts.awaitingApproval === 1 ? "" : "s"} awaiting approval.`
+            : "All set — check the Today page each morning for what to post.";
+
+  function openPost(p: Post) {
+    setSelectedWrite(!p.body); // empty posts open straight into writing
+    setSelectedId(p.id);
+  }
 
   return (
     <div>
@@ -151,6 +219,31 @@ export default function CampaignDetail() {
         )}
       </p>
       <h2>{campaign?.title ?? "…"}</h2>
+
+      {counts.total > 0 && (
+        <div className="stats-strip">
+          <span className="badge">{counts.total} post{counts.total === 1 ? "" : "s"}</span>
+          {counts.unwritten > 0 && (
+            <span className="badge pending">{counts.unwritten} unwritten</span>
+          )}
+          {counts.awaitingApproval > 0 && (
+            <span className="badge generated">{counts.awaitingApproval} to approve</span>
+          )}
+          {counts.approved > 0 && (
+            <span className="badge approved">{counts.approved} approved</span>
+          )}
+          {counts.posted > 0 && (
+            <span className="badge posted">{counts.posted} posted</span>
+          )}
+          <span className="badge time">{counts.scheduled} scheduled</span>
+          {counts.totals.reported && (
+            <span className="badge">
+              👁 {formatCount(counts.totals.views)} · 👍 {formatCount(counts.totals.likes)} · 💬 {formatCount(counts.totals.comments)}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="next-hint">{nextHint}</div>
 
       {campaign && <CampaignSettings campaign={campaign} onChanged={load} />}
 
@@ -164,7 +257,6 @@ export default function CampaignDetail() {
         <button type="submit">Add</button>
         <button
           type="button"
-          className="primary"
           style={{ whiteSpace: "nowrap" }}
           onClick={() => setShowThemeModal(true)}
         >
@@ -206,7 +298,9 @@ export default function CampaignDetail() {
             onChange={(e) => setTime(e.target.value)}
             style={{ width: 120 }}
           />
-          <button onClick={() => void applyBulkDates()}>Apply</button>
+          <button disabled={!previewSlots} onClick={() => void applyBulkDates()}>
+            Apply these dates
+          </button>
         </div>
 
         {cadenceKind === "weekly" && (
@@ -239,30 +333,62 @@ export default function CampaignDetail() {
           </div>
         )}
 
-        <div className="muted" style={{ fontSize: 13 }}>
-          Walks posts in order from the start date. Default time 09:00.
-        </div>
+        {previewSlots ? (
+          <div className="schedule-preview">
+            {previewSlots.slice(0, 5).map((d, i) => (
+              <div key={i}>
+                Post {i + 1}:{" "}
+                {d.toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+            ))}
+            {previewSlots.length > 5 && (
+              <div>
+                … and {previewSlots.length - 5} more, ending{" "}
+                {previewSlots[previewSlots.length - 1].toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="muted" style={{ fontSize: 13 }}>
+            Pick a start date to preview the dates before applying.
+          </div>
+        )}
       </div>
 
       <div className="row between">
         <div className="section-title">Posts ({posts.length})</div>
         <button
-          className="primary"
-          disabled={generating || pendingIds.length === 0}
-          onClick={() => void generate(pendingIds)}
+          disabled={generating || emptyPendingIds.length === 0}
+          onClick={() => void generate(emptyPendingIds)}
         >
           {generating ? (
             <><span className="spinner" /> Generating…</>
           ) : (
-            `Generate all pending (${pendingIds.length})`
+            `✨ Generate ${emptyPendingIds.length} empty post${emptyPendingIds.length === 1 ? "" : "s"} with AI`
           )}
         </button>
       </div>
 
       {error && <div className="error">{error}</div>}
 
-      {posts.length === 0 ? (
-        <div className="empty">No posts yet. Add themes above, then generate.</div>
+      {loading ? (
+        <div className="stack">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="empty">{nextHint}</div>
       ) : (
         <div className="stack">
           {posts.map((p, i) => (
@@ -281,7 +407,7 @@ export default function CampaignDetail() {
             >
               <div
                 className="post-row card-link"
-                onClick={() => setSelectedId(p.id)}
+                onClick={() => openPost(p)}
               >
                 <span
                   className="drag-handle"
@@ -296,6 +422,9 @@ export default function CampaignDetail() {
                 >
                   ⠿
                 </span>
+                {isRenderableImage(p.image_url) && (
+                  <img className="img-thumb" src={p.image_url} alt="" loading="lazy" />
+                )}
                 <div className="post-row-main">
                   <div className="post-row-top">
                     <strong className="post-row-theme">{p.theme}</strong>
@@ -312,8 +441,15 @@ export default function CampaignDetail() {
                     </div>
                   </div>
                   <p className="post-row-preview">
-                    {p.body || "No body yet — click to generate."}
+                    {p.body || "No body yet — click to write."}
                   </p>
+                  {p.status === "posted" && p.post_stats?.[0] && (
+                    <div className="stat-chips">
+                      👁 {formatCount(p.post_stats[0].views)} · 👍{" "}
+                      {formatCount(p.post_stats[0].likes)} · 💬{" "}
+                      {formatCount(p.post_stats[0].comments)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -324,6 +460,7 @@ export default function CampaignDetail() {
       {selectedId && (
         <PostDetailModal
           postId={selectedId}
+          initialEditing={selectedWrite}
           onClose={() => setSelectedId(null)}
           onChanged={loadPosts}
         />

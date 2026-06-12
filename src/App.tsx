@@ -7,6 +7,7 @@ import Calendar from "./pages/Calendar";
 import Accounts from "./pages/Accounts";
 import AccountDetail from "./pages/AccountDetail";
 import CampaignDetail from "./pages/CampaignDetail";
+import Stats from "./pages/Stats";
 import Users from "./pages/Users";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/today" element={<Today />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/stats" element={<Stats />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/accounts/:accountId" element={<AccountDetail />} />
         <Route path="/campaigns/:campaignId" element={<CampaignDetail />} />

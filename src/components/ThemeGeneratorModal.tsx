@@ -25,12 +25,20 @@ export default function ThemeGeneratorModal({
 
   const total = Math.max(1, perWeek) * weeks;
 
+  // Generated-but-not-added themes cost an AI call to recreate — confirm
+  // before throwing them away.
+  const hasUnsavedThemes = step === "review" && themes.length > 0;
+  function requestClose() {
+    if (hasUnsavedThemes && !confirm("Discard these generated themes?")) return;
+    onClose();
+  }
+
   // Close on Escape.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && requestClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  });
 
   async function generate() {
     setBusy(true);
@@ -76,13 +84,13 @@ export default function ThemeGeneratorModal({
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" onMouseDown={requestClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="row between" style={{ marginBottom: 4 }}>
           <h3 style={{ margin: 0 }}>
             {step === "config" ? "Generate themes" : `Review ${themes.length} themes`}
           </h3>
-          <button onClick={onClose} aria-label="Close">✕</button>
+          <button onClick={requestClose} aria-label="Close">✕</button>
         </div>
 
         {step === "config" ? (

@@ -9,6 +9,7 @@ export default function AccountDetail() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [aiInstructions, setAiInstructions] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -35,6 +36,7 @@ export default function AccountDetail() {
       account_id: accountId,
       title,
       description,
+      ai_instructions: aiInstructions,
     });
     if (error) {
       setError(error.message);
@@ -42,6 +44,7 @@ export default function AccountDetail() {
     }
     setTitle("");
     setDescription("");
+    setAiInstructions("");
     void load();
   }
 
@@ -73,10 +76,22 @@ export default function AccountDetail() {
           required
         />
         <textarea
-          placeholder="Description — purpose, audience, voice. Informs AI tone & context."
+          placeholder="Description — who is this for and what should posts achieve? The AI reads this too."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+        <details className="field-collapsible">
+          <summary>AI voice &amp; tone (optional)</summary>
+          <span className="muted" style={{ fontSize: 13, display: "block", margin: "0 0 8px" }}>
+            Only used if you generate posts with AI — steers their tone &amp; voice.
+          </span>
+          <textarea
+            placeholder='e.g. "Punchy, first-person, no emojis, one idea per post, end with a question."'
+            value={aiInstructions}
+            onChange={(e) => setAiInstructions(e.target.value)}
+            style={{ minHeight: 80 }}
+          />
+        </details>
         {error && <div className="error">{error}</div>}
         <div>
           <button className="primary" type="submit">Create campaign</button>

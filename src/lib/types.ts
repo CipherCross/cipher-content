@@ -35,6 +35,17 @@ export interface Campaign {
   created_at: string;
 }
 
+// One SDR-reported performance snapshot. Reports append; latest wins in the UI.
+export interface PostStats {
+  id: string;
+  post_id: string;
+  views: number;
+  likes: number;
+  comments: number;
+  recorded_at: string;
+  recorded_by: string | null;
+}
+
 export interface Post {
   id: string;
   campaign_id: string;
@@ -42,6 +53,8 @@ export interface Post {
   position: number;
   body: string;
   image_url: string | null;
+  // Link to the live LinkedIn post, once published.
+  linkedin_url: string | null;
   status: PostStatus;
   scheduled_at: string | null;
   posted_at: string | null;

@@ -1,23 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import type { Post } from "../lib/types";
+import type { Post, PostStats } from "../lib/types";
 import { fromLocalInput, toLocalInput } from "../lib/datetime";
+import { isRenderableImage } from "../lib/images";
+import { formatCount, timeAgo } from "../lib/stats";
+import ImagePicker from "./ImagePicker";
 import VariationsModal from "./VariationsModal";
 
 interface FullPost extends Post {
   campaigns: { id: string; title: string; accounts: { display_name: string } | null } | null;
+  // Latest SDR-reported stats snapshot (limit-1 embed), if any.
+  post_stats: Pick<PostStats, "views" | "likes" | "comments" | "recorded_at">[];
 }
 
 interface Props {
   postId: string;
+  /** Open straight into edit mode (e.g. clicking an empty post to write it). */
+  initialEditing?: boolean;
   onClose: () => void;
   onChanged: () => void | Promise<void>;
 }
 
-export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
+const LINKEDIN_LIMIT = 3000; // LinkedIn hard cap
+const HOOK_CHARS = 210; // shown before "…see more" in the feed
+
+export default function PostDetailModal({ postId, initialEditing, onClose, onChanged }: Props) {
   const [post, setPost] = useState<FullPost | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing ?? false);
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -27,13 +37,28 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [showVariations, setShowVariations] = useState(false);
 
+  // Refs so the Escape listener (registered once per postId) and backdrop
+  // handler always see current state.
+  const dirty =
+    editing &&
+    post !== null &&
+    (body !== post.body ||
+      imageUrl !== (post.image_url ?? "") ||
+      scheduledAt !== toLocalInput(post.scheduled_at));
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  const variationsOpenRef = useRef(false);
+  variationsOpenRef.current = showVariations;
+
   async function load() {
     const { data, error } = await supabase
       .from("posts")
       .select(
-        "*, campaigns(id, title, accounts(display_name))",
+        "*, campaigns(id, title, accounts(display_name)), post_stats(views, likes, comments, recorded_at)",
       )
       .eq("id", postId)
+      .order("recorded_at", { referencedTable: "post_stats", ascending: false })
+      .limit(1, { referencedTable: "post_stats" })
       .single();
     if (error) {
       setError(error.message);
@@ -46,9 +71,19 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
     setScheduledAt(toLocalInput(p.scheduled_at));
   }
 
+  function requestClose() {
+    if (dirtyRef.current && !confirm("Discard unsaved changes?")) return;
+    onClose();
+  }
+
   useEffect(() => {
     void load();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // The variations modal handles its own Escape; don't close both.
+      if (variationsOpenRef.current) return;
+      requestClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,18 +97,29 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
   async function save() {
     setBusy(true);
     setError(null);
-    const { error } = await supabase
-      .from("posts")
-      .update({
-        body,
-        image_url: imageUrl || null,
-        scheduled_at: fromLocalInput(scheduledAt),
-      })
-      .eq("id", postId);
+    const update: Partial<Post> = {
+      body,
+      image_url: imageUrl || null,
+      scheduled_at: fromLocalInput(scheduledAt),
+    };
+    // A hand-written body moves the post out of the "pending" pool so bulk
+    // AI generation can never overwrite it.
+    if (post?.status === "pending" && body.trim()) update.status = "generated";
+    const { error } = await supabase.from("posts").update(update).eq("id", postId);
     setBusy(false);
     if (error) return setError(error.message);
     setEditing(false);
     await refresh();
+  }
+
+  function cancelEdit() {
+    if (dirtyRef.current && !confirm("Discard unsaved changes?")) return;
+    if (post) {
+      setBody(post.body);
+      setImageUrl(post.image_url ?? "");
+      setScheduledAt(toLocalInput(post.scheduled_at));
+    }
+    setEditing(false);
   }
 
   async function generate(instruction?: string) {
@@ -120,8 +166,10 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
     await refresh();
   }
 
+  const firstLine = body.split("\n")[0] ?? "";
+
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" onMouseDown={requestClose}>
       <div className="modal modal-detail" onMouseDown={(e) => e.stopPropagation()}>
         {!post ? (
           <div className="modal-scroll">
@@ -145,7 +193,7 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
                   </div>
                   <h3 style={{ margin: "4px 0 0" }}>{post.theme}</h3>
                 </div>
-                <button onClick={onClose} aria-label="Close">✕</button>
+                <button onClick={requestClose} aria-label="Close">✕</button>
               </div>
 
               <div className="row" style={{ gap: 8 }}>
@@ -155,18 +203,59 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
                     {new Date(post.scheduled_at).toLocaleString()}
                   </span>
                 )}
+                {!editing && post.body && (
+                  <span className="badge time">{post.body.length} chars</span>
+                )}
               </div>
+
+              {post.status === "posted" && (
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {post.post_stats?.[0] ? (
+                    <>
+                      Performance: 👁 {formatCount(post.post_stats[0].views)} · 👍{" "}
+                      {formatCount(post.post_stats[0].likes)} · 💬{" "}
+                      {formatCount(post.post_stats[0].comments)} · updated{" "}
+                      {timeAgo(post.post_stats[0].recorded_at)} —{" "}
+                    </>
+                  ) : (
+                    <>No stats reported yet — </>
+                  )}
+                  <Link to="/stats" onClick={onClose}>update on the Stats page</Link>
+                  {post.linkedin_url && (
+                    <>
+                      {" · "}
+                      <a href={post.linkedin_url} target="_blank" rel="noreferrer">
+                        open on LinkedIn ↗
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
 
               {editing ? (
                 <>
                   <label className="field">
                     <span>Body</span>
-                    <textarea value={body} onChange={(e) => setBody(e.target.value)} />
+                    <textarea
+                      className="body-editor"
+                      autoFocus
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                    />
+                    <span className="row between" style={{ fontWeight: 400 }}>
+                      <span
+                        className={`char-counter${firstLine.length > HOOK_CHARS ? " warn" : ""}`}
+                      >
+                        Hook: {firstLine.length}/{HOOK_CHARS} chars before “…see more”
+                      </span>
+                      <span
+                        className={`char-counter${body.length > LINKEDIN_LIMIT ? " over" : ""}`}
+                      >
+                        {body.length} / {LINKEDIN_LIMIT}
+                      </span>
+                    </span>
                   </label>
-                  <label className="field">
-                    <span>Image URL (Google Drive, optional)</span>
-                    <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                  </label>
+                  <ImagePicker postId={postId} value={imageUrl} onChange={setImageUrl} />
                   <label className="field">
                     <span>Posting date &amp; time</span>
                     <div className="row" style={{ gap: 8 }}>
@@ -187,13 +276,23 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
                   {post.body ? (
                     <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{post.body}</p>
                   ) : (
-                    <p className="muted" style={{ margin: 0 }}>No body yet — generate one.</p>
+                    <p className="muted" style={{ margin: 0 }}>
+                      No body yet — write one, or generate with AI.
+                    </p>
                   )}
-                  {post.image_url && (
-                    <div className="muted" style={{ fontSize: 13 }}>
-                      Image: <a href={post.image_url} target="_blank">{post.image_url}</a>
-                    </div>
-                  )}
+                  {post.image_url &&
+                    (isRenderableImage(post.image_url) ? (
+                      <img
+                        className="img-preview"
+                        src={post.image_url}
+                        alt="Post image"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="muted" style={{ fontSize: 13 }}>
+                        Image: <a href={post.image_url} target="_blank">{post.image_url}</a>
+                      </div>
+                    ))}
                 </>
               )}
             </div>
@@ -207,53 +306,52 @@ export default function PostDetailModal({ postId, onClose, onChanged }: Props) {
                   <button className="primary" disabled={busy} onClick={() => void save()}>
                     {busy ? <><span className="spinner" /> Saving…</> : "Save"}
                   </button>
-                  <button onClick={() => setEditing(false)}>Cancel</button>
+                  <button onClick={cancelEdit}>Cancel</button>
+                </div>
+              ) : !post.body ? (
+                // Empty post: writing is the primary path; AI is the assist.
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <button className="primary" onClick={() => setEditing(true)}>
+                    Write post
+                  </button>
+                  <button disabled={busy} onClick={() => void generate()}>
+                    {busy ? <><span className="spinner" /> Generating…</> : "✨ Generate with AI"}
+                  </button>
                 </div>
               ) : (
                 <>
-                  {/* nudge input doubles as generate/regenerate control */}
+                  {/* nudge input doubles as the regenerate control */}
                   <div className="row wrap" style={{ gap: 8 }}>
                     <input
-                      placeholder={
-                        post.body
-                          ? "Tweak instruction (optional), then Regenerate"
-                          : "Extra instruction (optional)"
-                      }
+                      placeholder="Tweak instruction (optional), then Regenerate"
                       value={nudge}
                       onChange={(e) => setNudge(e.target.value)}
                       style={{ flex: 1, minWidth: 180 }}
                     />
                     <button
-                      className="primary"
                       disabled={busy}
                       onClick={() => void generate(nudge || undefined)}
                     >
                       {busy ? (
                         <><span className="spinner" /> Generating…</>
-                      ) : post.body ? (
-                        "Regenerate"
                       ) : (
-                        "Generate"
+                        "✨ Regenerate"
                       )}
                     </button>
                   </div>
 
                   <div className="row wrap" style={{ gap: 8 }}>
-                    {post.body && (
-                      <button onClick={() => void copy()}>
-                        {copied ? "Copied!" : "Copy"}
-                      </button>
-                    )}
-                    {post.body && (
-                      <button onClick={() => setShowVariations(true)}>Variations</button>
-                    )}
+                    <button onClick={() => void copy()}>
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                    <button onClick={() => setShowVariations(true)}>Variations</button>
                     <button onClick={() => setEditing(true)}>Edit</button>
                     {post.status === "generated" && (
                       <button className="primary" onClick={() => void approve()}>
                         Approve
                       </button>
                     )}
-                    {post.body && post.status !== "posted" && (
+                    {post.status !== "posted" && (
                       <button onClick={() => void markPosted()}>Mark posted</button>
                     )}
                   </div>

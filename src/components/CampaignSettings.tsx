@@ -31,6 +31,10 @@ export default function CampaignSettings({ campaign, onChanged }: Props) {
   }
 
   function cancel() {
+    const dirty =
+      description !== campaign.description ||
+      aiInstructions !== campaign.ai_instructions;
+    if (dirty && !confirm("Discard unsaved changes?")) return;
     setDescription(campaign.description);
     setAiInstructions(campaign.ai_instructions);
     setEditing(false);

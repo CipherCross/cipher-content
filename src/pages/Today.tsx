@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { isRenderableImage } from "../lib/images";
+import PostDetailModal from "../components/PostDetailModal";
 
 // Post joined with its account name, as returned by the query below.
 interface TodayPost {
@@ -21,6 +23,7 @@ export default function Today() {
   const [posts, setPosts] = useState<TodayPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ id: string; write: boolean } | null>(null);
 
   async function load() {
     const start = startOfToday();
@@ -67,7 +70,7 @@ export default function Today() {
   const overdue = posts.filter((p) => new Date(p.scheduled_at).getTime() < startMs);
   const todays = posts.filter((p) => new Date(p.scheduled_at).getTime() >= startMs);
   const ready = todays.filter((p) => p.body);
-  const needsGen = todays.filter((p) => !p.body);
+  const needsContent = todays.filter((p) => !p.body);
 
   function readyCard(p: TodayPost, showDate = false) {
     return (
@@ -87,16 +90,26 @@ export default function Today() {
           </div>
         </div>
         <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>
-        {p.image_url && (
-          <div className="muted" style={{ fontSize: 13 }}>
-            Image (attach manually):{" "}
-            <a href={p.image_url} target="_blank">{p.image_url}</a>
-          </div>
-        )}
+        {p.image_url &&
+          (isRenderableImage(p.image_url) ? (
+            <div className="stack" style={{ gap: 4 }}>
+              <img className="img-preview" src={p.image_url} alt="" loading="lazy" />
+              <span className="muted" style={{ fontSize: 13 }}>
+                Attach this image manually on LinkedIn —{" "}
+                <a href={p.image_url} target="_blank">open full size</a>
+              </span>
+            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: 13 }}>
+              Image (attach manually):{" "}
+              <a href={p.image_url} target="_blank">{p.image_url}</a>
+            </div>
+          ))}
         <div className="row" style={{ gap: 8 }}>
           <button onClick={() => void copy(p)}>
             {copiedId === p.id ? "Copied!" : "Copy"}
           </button>
+          <button onClick={() => setSelected({ id: p.id, write: false })}>Open</button>
           <button className="primary" onClick={() => void markPosted(p.id)}>
             Posted
           </button>
@@ -105,7 +118,7 @@ export default function Today() {
     );
   }
 
-  function needsGenRow(p: TodayPost, showDate = false) {
+  function needsContentRow(p: TodayPost, showDate = false) {
     return (
       <div className="card row between" key={p.id}>
         <div>
@@ -118,9 +131,13 @@ export default function Today() {
               {new Date(p.scheduled_at).toLocaleDateString()}
             </span>
           )}
-          <button className="primary" onClick={() => void generate(p.id)}>
-            Generate
+          <button
+            className="primary"
+            onClick={() => setSelected({ id: p.id, write: true })}
+          >
+            Write
           </button>
+          <button onClick={() => void generate(p.id)}>✨ Generate</button>
         </div>
       </div>
     );
@@ -142,7 +159,7 @@ export default function Today() {
         <>
           <div className="section-title overdue-title">Overdue ({overdue.length})</div>
           <div className="stack">
-            {overdue.map((p) => (p.body ? readyCard(p, true) : needsGenRow(p, true)))}
+            {overdue.map((p) => (p.body ? readyCard(p, true) : needsContentRow(p, true)))}
           </div>
         </>
       )}
@@ -154,11 +171,20 @@ export default function Today() {
         <div className="stack">{ready.map((p) => readyCard(p))}</div>
       )}
 
-      <div className="section-title">Needs generation ({needsGen.length})</div>
-      {needsGen.length === 0 ? (
-        <div className="empty">No ungenerated posts scheduled for today.</div>
+      <div className="section-title">Needs content ({needsContent.length})</div>
+      {needsContent.length === 0 ? (
+        <div className="empty">No empty posts scheduled for today.</div>
       ) : (
-        <div className="stack">{needsGen.map((p) => needsGenRow(p))}</div>
+        <div className="stack">{needsContent.map((p) => needsContentRow(p))}</div>
+      )}
+
+      {selected && (
+        <PostDetailModal
+          postId={selected.id}
+          initialEditing={selected.write}
+          onClose={() => setSelected(null)}
+          onChanged={load}
+        />
       )}
     </div>
   );

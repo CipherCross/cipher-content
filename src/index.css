@@ -456,6 +456,96 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 
 .overdue-title { color: var(--amber); }
 
+/* -------------------------------------------------------- image upload */
+.dropzone {
+  border: 1.5px dashed var(--border-light);
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  min-height: 84px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.dropzone:hover { border-color: var(--accent-dim); }
+.dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.img-preview {
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  object-fit: contain;
+  align-self: flex-start;
+}
+.img-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------------------- char counter */
+.char-counter {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.char-counter.warn { color: var(--amber); }
+.char-counter.over { color: var(--red); font-weight: 600; }
+.body-editor { min-height: 240px; }
+
+/* -------------------------------------------------- campaign stats/hints */
+.stats-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 12px; }
+.next-hint {
+  font-size: 14px;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.07);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.schedule-preview {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* loading skeleton (post list) */
+.skeleton-row {
+  height: 72px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* collapsible optional form field (native <details>) */
+details.field-collapsible summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  user-select: none;
+}
+details.field-collapsible summary:hover { color: var(--accent); }
+details.field-collapsible[open] summary { margin-bottom: 8px; }
+
 /* -------------------------------------------------------------- calendar */
 .cal-weekdays {
   display: grid;
@@ -582,4 +672,62 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
   .sidebar nav { flex-direction: row; }
   .sidebar .spacer { flex: 1; }
   .content { padding: 24px 18px; }
+}
+
+/* -------------------------------------------------------------- stats page */
+.stats-table-wrap {
+  overflow-x: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.stats-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-2);
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+.stats-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.stats-table tr:last-child td { border-bottom: none; }
+.stats-table th.num, .stats-table td.num { text-align: right; }
+.stats-table td.num input {
+  width: 86px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 7px 10px;
+}
+.stats-post-theme {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.stat-stale { color: var(--amber); font-weight: 600; }
+.stat-saved { color: var(--green); font-weight: 600; animation: fadeIn 0.2s var(--ease); }
+.stat-error { color: var(--red); font-size: 12px; }
+
+/* latest-stats chips on posted rows (CampaignDetail) */
+.stat-chips {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
