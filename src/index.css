@@ -210,6 +210,9 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 .badge.active    { color: var(--green); border-color: rgba(var(--green-rgb), 0.35); background: rgba(var(--green-rgb), 0.1); }
 .badge.completed { color: var(--muted); }
 .badge.time      { background: var(--bg-2); color: var(--muted); }
+.badge.time.overdue { color: var(--red); border-color: rgba(var(--red-rgb), 0.3); }
+/* article statuses */
+.badge.scheduled { color: var(--accent); border-color: var(--accent-dim); background: rgba(var(--accent-rgb), 0.1); }
 
 /* -------------------------------------------------------------- auth */
 .center-screen { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
@@ -731,3 +734,103 @@ details.field-collapsible[open] summary { margin-bottom: 8px; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* -------------------------------------------------------------- articles */
+.article-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--panel);
+}
+.article-body {
+  min-height: 420px;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+/* live "Saved / Saving… / Unsaved" indicator */
+.save-indicator {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.save-indicator.ok { color: var(--green); }
+.save-indicator.err { color: var(--red); }
+
+/* markdown toolbar */
+.md-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom: none;
+}
+.md-toolbar button {
+  padding: 5px 10px;
+  font-size: 13px;
+  background: var(--panel);
+}
+/* square off the textarea's top so it docks under the toolbar */
+.md-toolbar + .article-body,
+.md-toolbar + .md-preview {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* rendered markdown preview */
+.md-preview {
+  line-height: 1.65;
+  font-size: 15px;
+  min-height: 420px;
+}
+.md-preview > :first-child { margin-top: 0; }
+.md-preview h1, .md-preview h2, .md-preview h3,
+.md-preview h4, .md-preview h5, .md-preview h6 {
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+}
+.md-preview h1 { font-size: 28px; }
+.md-preview h2 { font-size: 23px; }
+.md-preview h3 { font-size: 19px; }
+.md-preview p { margin: 0 0 1em; }
+.md-preview ul, .md-preview ol { margin: 0 0 1em; padding-left: 1.5em; }
+.md-preview li { margin: 0.25em 0; }
+.md-preview a { text-decoration: underline; }
+.md-preview img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin: 0.5em 0;
+}
+.md-preview blockquote {
+  margin: 0 0 1em;
+  padding: 4px 16px;
+  border-left: 3px solid var(--accent-dim);
+  color: var(--muted);
+}
+.md-preview code {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 0.9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.md-preview pre {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+.md-preview pre code { background: none; border: none; padding: 0; }
+.md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }

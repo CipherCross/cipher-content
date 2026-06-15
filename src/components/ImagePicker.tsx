@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
-import { isRenderableImage, uploadPostImage } from "../lib/images";
+import { isRenderableImage } from "../lib/images";
 
 interface Props {
-  postId: string;
   value: string;
   onChange: (url: string) => void;
+  /** Uploads the chosen file and resolves to its public URL. */
+  upload: (file: File) => Promise<string>;
+  label?: string;
 }
 
-export default function ImagePicker({ postId, value, onChange }: Props) {
+export default function ImagePicker({ value, onChange, upload, label = "Image (optional)" }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -18,7 +20,7 @@ export default function ImagePicker({ postId, value, onChange }: Props) {
     setError(null);
     setUploading(true);
     try {
-      onChange(await uploadPostImage(postId, file));
+      onChange(await upload(file));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -28,7 +30,7 @@ export default function ImagePicker({ postId, value, onChange }: Props) {
 
   return (
     <div className="field">
-      <span>Image (optional)</span>
+      <span>{label}</span>
       <div
         className={`dropzone${dragOver ? " drag-over" : ""}`}
         onClick={() => fileInput.current?.click()}

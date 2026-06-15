@@ -10,6 +10,7 @@ export default function Layout() {
         <nav>
           <NavLink to="/today">Today</NavLink>
           <NavLink to="/calendar">Calendar</NavLink>
+          <NavLink to="/articles">Articles</NavLink>
           <NavLink to="/stats">Stats</NavLink>
           <NavLink to="/accounts">Accounts</NavLink>
           {isAdmin && <NavLink to="/users">Users</NavLink>}

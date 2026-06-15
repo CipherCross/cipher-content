@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { isRenderableImage } from "../lib/images";
+import type { Article } from "../lib/types";
 import PostDetailModal from "../components/PostDetailModal";
 
 // Post joined with its account name, as returned by the query below.
@@ -20,7 +22,9 @@ function startOfToday(): Date {
 }
 
 export default function Today() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<TodayPost[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; write: boolean } | null>(null);
@@ -40,6 +44,14 @@ export default function Today() {
       .neq("status", "posted")
       .order("scheduled_at", { ascending: true });
     if (data) setPosts(data as unknown as TodayPost[]);
+    // Scheduled articles due by end of today (overdue ones included).
+    const { data: arts } = await supabase
+      .from("articles")
+      .select("*")
+      .eq("status", "scheduled")
+      .lt("scheduled_at", endOfToday.toISOString())
+      .order("scheduled_at", { ascending: true });
+    if (arts) setArticles(arts as Article[]);
     setLoading(false);
   }
 
@@ -64,6 +76,20 @@ export default function Today() {
     await navigator.clipboard.writeText(post.body);
     setCopiedId(post.id);
     setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  async function copyArticle(a: Article) {
+    await navigator.clipboard.writeText(a.body);
+    setCopiedId(a.id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  async function markArticlePosted(id: string) {
+    await supabase
+      .from("articles")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", id);
+    void load();
   }
 
   const startMs = startOfToday().getTime();
@@ -143,6 +169,43 @@ export default function Today() {
     );
   }
 
+  function articleCard(a: Article) {
+    const overdueArticle = new Date(a.scheduled_at!).getTime() < startMs;
+    return (
+      <div className="card stack" key={a.id}>
+        <div className="row between">
+          <div>
+            <strong>📄 {a.title}</strong>
+            <span className="muted"> · Framer article</span>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <span className={`badge time${overdueArticle ? " overdue" : ""}`}>
+              {new Date(a.scheduled_at!).toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="badge scheduled">scheduled</span>
+          </div>
+        </div>
+        {a.image_url && isRenderableImage(a.image_url) && (
+          <img className="img-preview" src={a.image_url} alt="" loading="lazy" />
+        )}
+        <div className="row" style={{ gap: 8 }}>
+          <button onClick={() => void copyArticle(a)}>
+            {copiedId === a.id ? "Copied!" : "Copy for Framer"}
+          </button>
+          <button onClick={() => navigate(`/articles/${a.id}`)}>Open</button>
+          <button className="primary" onClick={() => void markArticlePosted(a.id)}>
+            Posted
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading)
     return (
       <div>
@@ -176,6 +239,13 @@ export default function Today() {
         <div className="empty">No empty posts scheduled for today.</div>
       ) : (
         <div className="stack">{needsContent.map((p) => needsContentRow(p))}</div>
+      )}
+
+      <div className="section-title">Articles to post ({articles.length})</div>
+      {articles.length === 0 ? (
+        <div className="empty">No articles scheduled for today.</div>
+      ) : (
+        <div className="stack">{articles.map((a) => articleCard(a))}</div>
       )}
 
       {selected && (

@@ -182,11 +182,76 @@ A top-level view, **across all accounts**, for executing the day's posts. "Today
 
 ---
 
+## Articles (Framer)
+
+A separate content type for **long-form articles published to the team's Framer
+website** (distinct from LinkedIn posts). Articles are **standalone** — not tied
+to an Account or Campaign — and are authored in **Markdown**.
+
+**Why Markdown:** Framer's CMS rich-text field accepts **pasted Markdown** and
+auto-converts it to formatted content (headings, bold/italic, ordered/unordered
+lists, tables, blockquotes, code blocks, links, images). So the workflow is:
+write Markdown in the app → **Copy for Framer** → paste into the Framer CMS
+rich-text field. The Markdown text is the source of truth; the in-app preview is
+a convenience renderer only.
+
+### Entity — Article
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `title` | string | Set on creation — creating a title makes a `draft` automatically |
+| `body` | text | Markdown content |
+| `image_url` | string | Optional cover image — Google Drive link **or** uploaded file (reuses the `post-images` bucket) |
+| `status` | enum | `draft`, `scheduled`, `posted` |
+| `scheduled_at` | timestamp | UTC; set when the writer schedules it |
+| `posted_at` | timestamp | Set when marked posted |
+| `created_by` | fk → User | Informational |
+| `created_at` / `updated_at` | timestamp | `updated_at` bumped by a DB trigger |
+
+### Lifecycle
+
+```
+draft → scheduled → posted
+```
+
+- **draft** — created with just a title; edited freely. **Saved on edit**
+  (debounced autosave; a live "Saving… / Saved / Unsaved" indicator shows state).
+- **scheduled** — writer clicks **Schedule for posting**, picks a date & time.
+  Can be rescheduled or unscheduled (back to draft).
+- **posted** — marked posted from Today (or the editor). Reversible to draft.
+
+### Editor
+
+- Full-page editor (long-form needs more room than the post modal).
+- Markdown **toolbar** (H2/H3, bold, italic, link, lists, quote, inline code)
+  for writers who don't know Markdown, plus an **Edit ⇄ Preview** toggle.
+- **Cover image**: upload (drag/drop or pick) or paste a Google Drive link —
+  same `ImagePicker` used by posts.
+- **Copy for Framer** copies the raw Markdown to the clipboard.
+
+### Articles list
+
+Grouped into three sections matching the lifecycle: **Scheduled**, **Drafts**,
+**History** (posted). A title field at the top creates a new draft and opens it.
+
+### Today integration
+
+Scheduled articles whose `scheduled_at` falls on (or before) today appear in a
+dedicated **"Articles to post"** section on the Today page — visible to everyone
+— each with **Copy for Framer**, **Open**, and **Posted** actions.
+
+---
+
 ## Navigation Structure
 
 ```
 App
-├── Today (daily posting queue)
+├── Today (daily posting queue — posts + articles due today)
+├── Calendar
+├── Articles (Scheduled / Drafts / History)
+│   └── Article Editor (Markdown + preview, autosave, schedule)
+├── Stats
 ├── Accounts (list)
 │   └── Account Detail
 │       └── Campaigns (list)

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { Post, PostStats } from "../lib/types";
 import { fromLocalInput, toLocalInput } from "../lib/datetime";
-import { isRenderableImage } from "../lib/images";
+import { isRenderableImage, uploadPostImage } from "../lib/images";
 import { formatCount, timeAgo } from "../lib/stats";
 import ImagePicker from "./ImagePicker";
 import VariationsModal from "./VariationsModal";
@@ -255,7 +255,11 @@ export default function PostDetailModal({ postId, initialEditing, onClose, onCha
                       </span>
                     </span>
                   </label>
-                  <ImagePicker postId={postId} value={imageUrl} onChange={setImageUrl} />
+                  <ImagePicker
+                    value={imageUrl}
+                    onChange={setImageUrl}
+                    upload={(f) => uploadPostImage(postId, f)}
+                  />
                   <label className="field">
                     <span>Posting date &amp; time</span>
                     <div className="row" style={{ gap: 8 }}>

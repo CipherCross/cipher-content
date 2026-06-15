@@ -46,6 +46,25 @@ export interface PostStats {
   recorded_by: string | null;
 }
 
+// Long-form Markdown content for the Framer website builder. Standalone —
+// not tied to an account/campaign. Lifecycle: draft -> scheduled -> posted.
+export type ArticleStatus = "draft" | "scheduled" | "posted";
+
+export interface Article {
+  id: string;
+  title: string;
+  // Markdown body (Framer CMS rich-text accepts pasted Markdown).
+  body: string;
+  // Google Drive link or an uploaded image (reuses the post-images bucket).
+  image_url: string | null;
+  status: ArticleStatus;
+  scheduled_at: string | null; // UTC; set when scheduled
+  posted_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Post {
   id: string;
   campaign_id: string;
