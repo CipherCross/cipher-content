@@ -345,8 +345,8 @@ export default function PostDetailModal({ postId, initialEditing, onClose, onCha
                   </div>
 
                   <div className="row wrap" style={{ gap: 8 }}>
-                    <button onClick={() => void copy()}>
-                      {copied ? "Copied!" : "Copy"}
+                    <button className={copied ? "copied" : ""} onClick={() => void copy()}>
+                      {copied ? "✓ Copied!" : "Copy"}
                     </button>
                     <button onClick={() => setShowVariations(true)}>Variations</button>
                     <button onClick={() => setEditing(true)}>Edit</button>

@@ -122,15 +122,33 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; }
 .sidebar nav a {
+  position: relative;
   display: block;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   color: var(--muted);
   font-weight: 500;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease),
+    transform 0.12s var(--ease);
+}
+/* accent rail that grows in when the link becomes active */
+.sidebar nav a::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 3px;
+  height: 58%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition: transform 0.2s var(--ease);
 }
 .sidebar nav a:hover { background: rgba(var(--accent-rgb), 0.07); color: var(--text); }
+.sidebar nav a:hover:not(.active) { transform: translateX(2px); }
 .sidebar nav a.active { background: rgba(var(--accent-rgb), 0.13); color: var(--accent); }
+.sidebar nav a.active::before { transform: translateY(-50%) scaleY(1); }
 .sidebar .spacer { flex: 1; }
 .sidebar-email {
   font-size: 13px;
@@ -200,6 +218,9 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
   text-transform: capitalize;
   letter-spacing: 0.2px;
   white-space: nowrap;
+  /* recolour smoothly when a status changes in place */
+  transition: background 0.25s var(--ease), color 0.25s var(--ease),
+    border-color 0.25s var(--ease);
 }
 /* status-coded badges */
 .badge.pending   { color: var(--muted); }
@@ -834,3 +855,35 @@ details.field-collapsible[open] summary { margin-bottom: 8px; }
 }
 .md-preview pre code { background: none; border: none; padding: 0; }
 .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+
+/* --------------------------------------------------- micro-interactions */
+/* copy buttons flash green and pop on success */
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+button.copied {
+  background: rgba(var(--green-rgb), 0.12);
+  border-color: rgba(var(--green-rgb), 0.4);
+  color: var(--green);
+  animation: pop 0.3s var(--ease);
+}
+button.copied:hover:not(:disabled) {
+  background: rgba(var(--green-rgb), 0.16);
+  border-color: rgba(var(--green-rgb), 0.5);
+}
+
+/* autosave indicator: smooth colour, gentle pulse while writing */
+.save-indicator { transition: color 0.25s var(--ease); }
+.save-indicator.saving { color: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+
+/* article editor: ease the Edit <-> Preview swap, and the cover image card */
+.article-body, .md-preview { animation: paneIn 0.22s var(--ease); }
+@keyframes paneIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* schedule panel slides into view and the field auto-focuses */
+.schedule-panel { animation: slideUp 0.24s var(--ease); }

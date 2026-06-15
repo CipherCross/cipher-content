@@ -132,8 +132,8 @@ export default function Today() {
             </div>
           ))}
         <div className="row" style={{ gap: 8 }}>
-          <button onClick={() => void copy(p)}>
-            {copiedId === p.id ? "Copied!" : "Copy"}
+          <button className={copiedId === p.id ? "copied" : ""} onClick={() => void copy(p)}>
+            {copiedId === p.id ? "✓ Copied!" : "Copy"}
           </button>
           <button onClick={() => setSelected({ id: p.id, write: false })}>Open</button>
           <button className="primary" onClick={() => void markPosted(p.id)}>
@@ -194,8 +194,11 @@ export default function Today() {
           <img className="img-preview" src={a.image_url} alt="" loading="lazy" />
         )}
         <div className="row" style={{ gap: 8 }}>
-          <button onClick={() => void copyArticle(a)}>
-            {copiedId === a.id ? "Copied!" : "Copy for Framer"}
+          <button
+            className={copiedId === a.id ? "copied" : ""}
+            onClick={() => void copyArticle(a)}
+          >
+            {copiedId === a.id ? "✓ Copied!" : "Copy for Framer"}
           </button>
           <button onClick={() => navigate(`/articles/${a.id}`)}>Open</button>
           <button className="primary" onClick={() => void markArticlePosted(a.id)}>

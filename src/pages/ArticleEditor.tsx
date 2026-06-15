@@ -114,6 +114,21 @@ export default function ArticleEditor() {
       ta.selectionEnd = e + before.length;
     });
   }
+  // Familiar rich-text shortcuts, mapped to Markdown wrapping.
+  function handleBodyKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === "b") {
+      e.preventDefault();
+      surround("**");
+    } else if (k === "i") {
+      e.preventDefault();
+      surround("_");
+    } else if (k === "k") {
+      e.preventDefault();
+      surround("[", "](https://)");
+    }
+  }
   function linePrefix(prefix: string) {
     const ta = bodyRef.current;
     if (!ta) return;
@@ -190,8 +205,18 @@ export default function ArticleEditor() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  // Pre-fill the schedule field so the common case (post tomorrow morning) is
+  // one click: default to tomorrow 09:00 local unless a time is already set.
+  function defaultScheduleInput() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return toLocalInput(d.toISOString());
+  }
   function openSchedule() {
-    setScheduleInput(toLocalInput(article?.scheduled_at ?? null));
+    setScheduleInput(
+      article?.scheduled_at ? toLocalInput(article.scheduled_at) : defaultScheduleInput(),
+    );
     setShowSchedule(true);
   }
 
@@ -232,8 +257,8 @@ export default function ArticleEditor() {
           <span className={`badge ${article.status}`}>{article.status}</span>
           <span
             className={`save-indicator${saveState === "error" ? " err" : ""}${
-              !dirty && saveState !== "error" ? " ok" : ""
-            }`}
+              saveState === "saving" ? " saving" : ""
+            }${!dirty && saveState !== "error" && saveState !== "saving" ? " ok" : ""}`}
           >
             {saveLabel}
           </span>
@@ -306,9 +331,10 @@ export default function ArticleEditor() {
         <textarea
           ref={bodyRef}
           className="body-editor article-body"
-          placeholder="Write your article in Markdown — headings, **bold**, lists, > quotes, [links](url)… Then Preview, or Copy for Framer."
+          placeholder="Write your article in Markdown — headings, **bold**, lists, > quotes, [links](url)… ⌘B / ⌘I / ⌘K for quick formatting. Then Preview, or Copy for Framer."
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          onKeyDown={handleBodyKey}
         />
       )}
 
@@ -325,11 +351,12 @@ export default function ArticleEditor() {
 
       {/* Schedule panel */}
       {showSchedule && (
-        <div className="card stack" style={{ marginTop: 14 }}>
+        <div className="card stack schedule-panel" style={{ marginTop: 14 }}>
           <div className="field-label">Schedule for posting</div>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
             <input
               type="datetime-local"
+              autoFocus
               value={scheduleInput}
               onChange={(e) => setScheduleInput(e.target.value)}
               style={{ width: 240 }}
@@ -344,8 +371,8 @@ export default function ArticleEditor() {
 
       {/* Action bar */}
       <div className="row wrap" style={{ gap: 8, marginTop: 18 }}>
-        <button onClick={() => void copyMarkdown()}>
-          {copied ? "Copied!" : "Copy for Framer"}
+        <button className={copied ? "copied" : ""} onClick={() => void copyMarkdown()}>
+          {copied ? "✓ Copied!" : "Copy for Framer"}
         </button>
         {article.status === "draft" && (
           <button className="primary" onClick={openSchedule}>Schedule for posting</button>
