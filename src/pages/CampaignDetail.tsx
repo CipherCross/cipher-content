@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { Campaign, Post, PostStats } from "../lib/types";
 import { computeSchedule, type Cadence } from "../lib/schedule";
@@ -16,6 +16,7 @@ type PostWithStats = Post & {
 
 export default function CampaignDetail() {
   const { campaignId } = useParams();
+  const navigate = useNavigate();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [posts, setPosts] = useState<PostWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,21 @@ export default function CampaignDetail() {
     }
     setTheme("");
     void loadPosts();
+  }
+
+  async function deletePost(id: string) {
+    if (!confirm("Delete this post?")) return;
+    await supabase.from("posts").delete().eq("id", id);
+    void loadPosts();
+  }
+
+  async function deleteCampaign() {
+    if (
+      !confirm("Delete this campaign? This permanently removes ALL its posts.")
+    )
+      return;
+    await supabase.from("campaigns").delete().eq("id", campaignId);
+    navigate(`/accounts/${campaign?.account_id ?? ""}`);
   }
 
   async function generate(postIds: string[], instruction?: string) {
@@ -218,7 +234,14 @@ export default function CampaignDetail() {
           <Link to={`/accounts/${campaign.account_id}`}>← Back to account</Link>
         )}
       </p>
-      <h2>{campaign?.title ?? "…"}</h2>
+      <div className="row between">
+        <h2>{campaign?.title ?? "…"}</h2>
+        {campaign && (
+          <button style={{ color: "var(--red)" }} onClick={() => void deleteCampaign()}>
+            Delete campaign
+          </button>
+        )}
+      </div>
 
       {counts.total > 0 && (
         <div className="stats-strip">
@@ -438,6 +461,15 @@ export default function CampaignDetail() {
                         </span>
                       )}
                       <span className={`badge ${p.status}`}>{p.status}</span>
+                      <button
+                        style={{ color: "var(--red)" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deletePost(p.id);
+                        }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                   <p className="post-row-preview">

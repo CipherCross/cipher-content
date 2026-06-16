@@ -45,6 +45,12 @@ export default function Articles() {
     navigate(`/articles/${data.id}`);
   }
 
+  async function remove(id: string) {
+    if (!confirm("Delete this article permanently? This cannot be undone.")) return;
+    await supabase.from("articles").delete().eq("id", id);
+    void load();
+  }
+
   const scheduled = articles
     .filter((a) => a.status === "scheduled")
     .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
@@ -76,7 +82,18 @@ export default function Articles() {
         <div className="post-row-main">
           <div className="post-row-top">
             <strong className="post-row-theme">{a.title}</strong>
-            <span className={`badge ${a.status}`}>{a.status}</span>
+            <div className="row" style={{ gap: 6 }}>
+              <span className={`badge ${a.status}`}>{a.status}</span>
+              <button
+                style={{ color: "var(--red)" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void remove(a.id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <p className="post-row-preview">{when}</p>
         </div>

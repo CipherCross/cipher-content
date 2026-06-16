@@ -59,6 +59,15 @@ export default function AccountDetail() {
     window.location.href = "/accounts";
   }
 
+  async function deleteCampaign(id: string) {
+    if (
+      !confirm("Delete this campaign? This permanently removes ALL its posts.")
+    )
+      return;
+    await supabase.from("campaigns").delete().eq("id", id);
+    void load();
+  }
+
   return (
     <div>
       <p className="muted"><Link to="/accounts">← Accounts</Link></p>
@@ -109,7 +118,12 @@ export default function AccountDetail() {
                 <Link to={`/campaigns/${c.id}`}><strong>{c.title}</strong></Link>
                 <div className="muted" style={{ fontSize: 13 }}>{c.description}</div>
               </div>
-              <span className={`badge ${c.status}`}>{c.status}</span>
+              <div className="row" style={{ gap: 8 }}>
+                <span className={`badge ${c.status}`}>{c.status}</span>
+                <button style={{ color: "var(--red)" }} onClick={() => void deleteCampaign(c.id)}>
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

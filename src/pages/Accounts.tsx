@@ -44,6 +44,17 @@ export default function Accounts() {
     void load();
   }
 
+  async function deleteAccount(id: string) {
+    if (
+      !confirm(
+        "Delete this account? This will permanently remove ALL its campaigns and posts.",
+      )
+    )
+      return;
+    await supabase.from("accounts").delete().eq("id", id);
+    void load();
+  }
+
   return (
     <div>
       <h2>Accounts</h2>
@@ -83,7 +94,12 @@ export default function Accounts() {
                   {a.linkedin_url ?? "linkedin"}
                 </div>
               </div>
-              <span className="badge">{a.platform}</span>
+              <div className="row" style={{ gap: 8 }}>
+                <span className="badge">{a.platform}</span>
+                <button style={{ color: "var(--red)" }} onClick={() => void deleteAccount(a.id)}>
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -131,6 +131,18 @@ export default function Today() {
     void load();
   }
 
+  async function deletePost(id: string) {
+    if (!confirm("Delete this post?")) return;
+    await supabase.from("posts").delete().eq("id", id);
+    void load();
+  }
+
+  async function deleteArticle(id: string) {
+    if (!confirm("Delete this article permanently? This cannot be undone.")) return;
+    await supabase.from("articles").delete().eq("id", id);
+    void load();
+  }
+
   const startMs = startOfToday().getTime();
   // Hide posts belonging to deselected accounts (e.g. accounts we no longer
   // post for). Posts with no account stay visible — they match no toggle.
@@ -184,6 +196,9 @@ export default function Today() {
           <button className="primary" onClick={() => void markPosted(p.id)}>
             Posted
           </button>
+          <button style={{ color: "var(--red)" }} onClick={() => void deletePost(p.id)}>
+            Delete
+          </button>
         </div>
       </div>
     );
@@ -209,6 +224,9 @@ export default function Today() {
             Write
           </button>
           <button onClick={() => void generate(p.id)}>✨ Generate</button>
+          <button style={{ color: "var(--red)" }} onClick={() => void deletePost(p.id)}>
+            Delete
+          </button>
         </div>
       </div>
     );
@@ -248,6 +266,9 @@ export default function Today() {
           <button onClick={() => navigate(`/articles/${a.id}`)}>Open</button>
           <button className="primary" onClick={() => void markArticlePosted(a.id)}>
             Posted
+          </button>
+          <button style={{ color: "var(--red)" }} onClick={() => void deleteArticle(a.id)}>
+            Delete
           </button>
         </div>
       </div>

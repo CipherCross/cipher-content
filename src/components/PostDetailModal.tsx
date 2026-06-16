@@ -152,6 +152,14 @@ export default function PostDetailModal({ postId, initialEditing, onClose, onCha
     await refresh();
   }
 
+  async function deletePost() {
+    if (!confirm("Delete this post?")) return;
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
+    if (error) return setError(error.message);
+    await onChanged();
+    onClose();
+  }
+
   async function copy() {
     await navigator.clipboard.writeText(post?.body ?? "");
     setCopied(true);
@@ -321,6 +329,9 @@ export default function PostDetailModal({ postId, initialEditing, onClose, onCha
                   <button disabled={busy} onClick={() => void generate()}>
                     {busy ? <><span className="spinner" /> Generating…</> : "✨ Generate with AI"}
                   </button>
+                  <button style={{ color: "var(--red)" }} onClick={() => void deletePost()}>
+                    Delete
+                  </button>
                 </div>
               ) : (
                 <>
@@ -358,6 +369,9 @@ export default function PostDetailModal({ postId, initialEditing, onClose, onCha
                     {post.status !== "posted" && (
                       <button onClick={() => void markPosted()}>Mark posted</button>
                     )}
+                    <button style={{ color: "var(--red)" }} onClick={() => void deletePost()}>
+                      Delete
+                    </button>
                   </div>
                 </>
               )}
