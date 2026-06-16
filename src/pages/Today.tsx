@@ -21,6 +21,19 @@ function startOfToday(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
+// Persisted across sessions — display names of accounts hidden from Today.
+// We store *hidden* (not shown) so newly added accounts default to visible.
+const HIDDEN_KEY = "cipher.today.hiddenAccounts";
+
+function loadHidden(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export default function Today() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<TodayPost[]>([]);
@@ -28,6 +41,22 @@ export default function Today() {
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; write: boolean } | null>(null);
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [hidden, setHidden] = useState<Set<string>>(loadHidden);
+
+  function toggleAccount(name: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      try {
+        localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore quota/availability errors */
+      }
+      return next;
+    });
+  }
 
   async function load() {
     const start = startOfToday();
@@ -57,6 +86,16 @@ export default function Today() {
 
   useEffect(() => {
     void load();
+    // The full account roster powers the filter, independent of what's due today.
+    void supabase
+      .from("accounts")
+      .select("display_name")
+      .order("display_name", { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          setAccounts(Array.from(new Set(data.map((a) => a.display_name as string))));
+        }
+      });
   }, []);
 
   async function markPosted(id: string) {
@@ -93,8 +132,14 @@ export default function Today() {
   }
 
   const startMs = startOfToday().getTime();
-  const overdue = posts.filter((p) => new Date(p.scheduled_at).getTime() < startMs);
-  const todays = posts.filter((p) => new Date(p.scheduled_at).getTime() >= startMs);
+  // Hide posts belonging to deselected accounts (e.g. accounts we no longer
+  // post for). Posts with no account stay visible — they match no toggle.
+  const visiblePosts = posts.filter((p) => {
+    const name = p.campaigns?.accounts?.display_name;
+    return !name || !hidden.has(name);
+  });
+  const overdue = visiblePosts.filter((p) => new Date(p.scheduled_at).getTime() < startMs);
+  const todays = visiblePosts.filter((p) => new Date(p.scheduled_at).getTime() >= startMs);
   const ready = todays.filter((p) => p.body);
   const needsContent = todays.filter((p) => !p.body);
 
@@ -220,6 +265,24 @@ export default function Today() {
   return (
     <div>
       <h2>Today</h2>
+
+      {accounts.length > 0 && (
+        <div className="acct-filter">
+          {accounts.map((name) => {
+            const on = !hidden.has(name);
+            return (
+              <button
+                key={name}
+                className={`weekday-toggle${on ? " on" : ""}`}
+                aria-pressed={on}
+                onClick={() => toggleAccount(name)}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {overdue.length > 0 && (
         <>

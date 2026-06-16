@@ -413,6 +413,10 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 
 /* weekday picker (bulk-assign "specific weekdays") */
 .weekday-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* account filter on Today — pill toggles reusing .weekday-toggle styling */
+.acct-filter { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 20px; }
+.acct-filter .weekday-toggle { cursor: pointer; }
 .weekday-toggle {
   min-width: 46px;
   padding: 7px 10px;
